@@ -1,0 +1,87 @@
+STARTER CODE - BUGS IDENTIFIED AND FIXED
+=========================================
+
+Build / install issues
+----------------------
+1. testbed_description/CMakeLists.txt
+   Problem : `ament_package` was written without parentheses, which is a CMake
+             parse error and aborts the whole colcon build.
+   Fix     : call `ament_package()`.
+
+2. testbed_bringup/CMakeLists.txt
+   Problem : only `launch/` was installed. `maps/` stayed in the source tree, so
+             map_server looked for the map in the install space and found
+             nothing.
+   Fix     : install `launch` and `maps`.
+
+3. testbed_gazebo/CMakeLists.txt
+   Problem : the launch file adds `models/` to GAZEBO_MODEL_PATH, but `models/`
+             was never installed next to the launch file.
+   Fix     : install `models` as well.
+
+Wrong data
+----------
+4. testbed_bringup/maps/testbed_world.yaml
+   Problem : `image` pointed to a non-existent file `wrong_path_testbed_world.pgm`.
+   Fix     : point it to `testbed_world.pgm` (resolved next to the YAML).
+
+5. testbed_description/urdf/testbed.gazebo - lidar range
+   Problem : the laser `<max>` was 1.5 m while the test room is roughly 20 m
+             wide. From most poses the robot saw no wall, so AMCL had no
+             features to localise against and the costmaps stayed empty.
+   Fix     : increase the maximum range to 12 m.
+
+6. testbed_description/urdf/testbed.gazebo - wheel separation
+   Problem : `wheel_separation` was 0.35 m. The actual wheel-centre track,
+             measured from the wheel meshes and joint origins, is 0.376 m.
+             A wrong track makes odometry under/over-estimate turns, so the
+             robot does not follow planned arcs.
+   Fix     : set `wheel_separation` to 0.376 m.
+
+7. testbed_description/urdf/testbed.gazebo - TF/odometry overload
+   Problem : the diff-drive plugin published odometry and two wheel transforms
+             at 100 Hz. That flood saturated /tf and the Nav2 controller could
+             stop receiving map->odom ("transform data too old").
+   Fix     : lower the diff-drive `update_rate` to 50 Hz.
+
+Malformed / incompatible XML
+----------------------------
+8. testbed_description/urdf/testbed.gazebo - ROS 1 control plugin
+   Problem : `libgazebo_ros_control.so` is a ROS 1 Gazebo plugin and fails to
+             load in ROS 2. Motion is already handled by
+             `libgazebo_ros_diff_drive.so`.
+   Fix     : remove the `control` plugin block.
+
+9. testbed_description/urdf/testbed.gazebo - IMU plugin
+   Problem : a stray `>` after `</initial_orientation_as_reference>` made the
+             sensor block malformed.
+   Fix     : remove the extra character.
+
+Simulation time / display
+-------------------------
+10. testbed_description/launch/robot_description.launch.py
+    Problem : robot_state_publisher ran on wall time while Gazebo published on
+              /clock, so the TF tree lagged/jumped and RViz showed stale joint
+              states.
+    Fix     : add `use_sim_time: True` to the node parameters.
+
+11. testbed_bringup/launch/testbed_full_bringup.launch.py
+    Problem : RViz always started, which is awkward on headless machines and
+              when another RViz instance is already running.
+    Fix     : add a `use_rviz` launch argument (default true) and an
+              IfCondition on the RViz node.
+
+12. testbed_description/rviz/full_bringup.rviz
+    Problem : the RobotModel display listened to /robot_description with a
+              Volatile durability policy. The description is published as a
+              latched (transient-local) message, so RViz often missed it and
+              showed no robot model.
+    Fix     : set the description topic durability to Transient Local.
+
+Observations (not changed)
+--------------------------
+- base_footprint is not at the geometric centre of the robot (body centre is
+  about x=-0.05 m, y=-0.04 m), so a circle footprint would not cover the body.
+  A rectangular footprint offset in nav2_params.yaml handles this.
+- The imu/dummy link y-offsets do not exactly match their meshes. Neither link
+  is used by navigation, so this was left untouched.

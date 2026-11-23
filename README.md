@@ -105,7 +105,7 @@ To get started, you’ll need:
 1. Submit your completed `testbed_navigation` package with:
    - Parameter files for map loading, localization, and navigation.
    - Launch files for each component.
-   - A `README.md` describing your approach and any challenges you faced.
+   - A `README.md` describing your approach and any challenges you faced. -> the README.md is updated in the testbed_navigation directory itself
 2. Provide a short video or screenshots showing your robot performing localization and navigation.
 
 ### 8. Evaluation Criteria
@@ -120,11 +120,55 @@ We’ll be looking for:
 - Thorough testing is encouraged to ensure everything works as expected.
 - If you have questions, check out the help section and don’t hesitate to reach out to us.
 - Lastly, we encourage you to share your code for review—even if it’s still a work in progress.
+
+## Major Observations
+
+The following observations were made while debugging the navigation stack. No
+code changes are required for these — they are notes about the robot, the
+simulation, and the Nav2 configuration that affect how the system behaves:
+
+1. **AMCL initial pose must be in `map` frame.** RViz's `2D Pose Estimate`
+   publishes in whatever frame RViz's Fixed Frame is set to. If Fixed Frame is
+   `odom`, AMCL ignores the pose (`Ignoring initial pose in frame "odom"; initial
+   poses must be in the global frame, "map"`). Always set RViz Fixed Frame to
+   `map` before sending a pose estimate.
+
+2. **TF extrapolation causes goal aborts.** Gazebo publishes odometry and wheel
+   transforms at high rate, which floods `/tf` and starves Nav2's TF listener.
+   This produces `Lookup would require extrapolation into the future` errors
+   that abort the current goal. Mitigation: lower the diff-drive `update_rate`
+   (30 Hz instead of 100 Hz) and raise `transform_tolerance` (2.0 s on
+   costmaps/controllers).
+
+3. **Lidar max range must cover the room.** The starter lidar range (1.5 m) is
+   too short for the 20×20 m map — AMCL never sees walls from most positions,
+   so particles never converge and costmaps stay empty. The gazebo lidar max
+   range was raised to 10 m.
+
+4. **Wheel separation affects odometry accuracy.** The starter value (0.35 m)
+   used the inner wheel faces; the physical track is 0.376 m. Commanded turns
+   overshot/undershot until the separation was corrected.
+
+5. **Footprint must match the chassis shape.** `base_footprint` is offset from
+   the geometric centre of the robot body, so a centred circle would leave part
+   of the robot uncovered. Both costmaps use an offset rectangular polygon
+   footprint instead.
+
+6. **Lifecycle bonds are unreliable under load.** With `use_sim_time` active,
+   lifecycle bond timeouts can cause nodes to hang unconfigured. All lifecycle
+   managers use `bond_timeout: 0.0` with `autostart: true`, and stage startup
+   is staggered with `TimerAction` delays.
+
+7. **Unified bringup.** `testbed_bringup/launch/testbed_unified_bringup.launch.py`
+   starts simulation, map, localization, and Nav2 servers from a single
+   `ros2 launch` command. The individual launch files remain available for
+   debugging each stage independently.
+
 ---
 
 We’re excited to see how you approach this task. Good luck, and happy coding! :)
 
 ## Contact Info 
- - Name: Your full name
- - Contact number: Your contact number
- - Email Address: Your email address
+ - Name: Palash Siddharth Mendhe
+ - Contact number: 9406068049
+ - Email Address: palashmendhe777@gmail.com
